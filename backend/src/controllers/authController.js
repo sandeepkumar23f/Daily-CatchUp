@@ -14,18 +14,18 @@ const authSchema = z.object({
 
 export const SignUp = async (req, res) => {
   try {
-    // 1. Validate Input Payload
     const parseResult = authSchema.safeParse(req.body);
+    
     if (!parseResult.success) {
+      const errorMessage = parseResult.error.issues?.[0]?.message || "Invalid payload";
       return res.status(400).json({
         success: false,
-        message: parseResult.error.errors[0].message,
+        message: errorMessage,
       });
     }
 
     const { email, password } = parseResult.data;
 
-    // 2. Check Existing User
     const db = await connection();
     const collection = db.collection("users");
     const existingUser = await collection.findOne({ email });
@@ -37,10 +37,8 @@ export const SignUp = async (req, res) => {
       });
     }
 
-    // 3. Hash Password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // 4. Insert User
     const result = await collection.insertOne({
       email,
       password: hashedPassword,
@@ -51,7 +49,6 @@ export const SignUp = async (req, res) => {
       return res.status(500).json({ success: false, message: "User creation failed" });
     }
 
-    // 5. Generate Token & Respond
     const tokenData = {
       _id: result.insertedId.toString(),
       email,
@@ -64,7 +61,7 @@ export const SignUp = async (req, res) => {
       secure: true,
       sameSite: "none",
       path: "/",
-      maxAge: 5 * 24 * 60 * 60 * 1000, // 5 days
+      maxAge: 5 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(201).json({
@@ -73,6 +70,7 @@ export const SignUp = async (req, res) => {
       token,
     });
   } catch (error) {
+    console.error("SignUp Error Details:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
