@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import dns from "node:dns";
 import { connection } from "./config/dbconfig.js";
 import authRoutes from "./routes/authRoutes.js";
-
+import newsRoutes from "./routes/newsRoutes.js"
 dotenv.config();
 
 // Custom DNS configuration (useful for MongoDB Atlas resolution issues on some ISPs)
@@ -47,7 +47,7 @@ connection()
     
     // Routes
     app.use("/api/auth", authRoutes);
-
+    app.use("/api/news",newsRoutes)
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
