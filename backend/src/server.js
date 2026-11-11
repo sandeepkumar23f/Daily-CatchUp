@@ -5,31 +5,33 @@ import cookieParser from "cookie-parser";
 import dns from "node:dns";
 import { connection } from "./config/dbconfig.js";
 import authRoutes from "./routes/authRoutes.js";
-import newsRoutes from "./routes/newsRoutes.js"
+import newsRoutes from "./routes/newsRoutes.js";
+
 dotenv.config();
 
-// Custom DNS configuration (useful for MongoDB Atlas resolution issues on some ISPs)
+// Custom DNS configuration for MongoDB Atlas resolution on certain networks
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Define allowed origins for CORS
+// Dynamic CORS origin configuration
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3010",
   "http://localhost:5173",
-];
+  process.env.FRONTEND_URL,
+].filter(Boolean);
 
 // Middleware
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like Postman or mobile apps)
+      // Allow requests with no origin (like Postman or server-to-server) or matched origins
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error(`CORS policy blocked request from origin: ${origin}`));
       }
     },
     credentials: true,
@@ -41,14 +43,14 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Connect to Database & Start Server
 connection()
   .then(() => {
     console.log("Database connected successfully");
-    
+
     // Routes
     app.use("/api/auth", authRoutes);
-    app.use("/api/news",newsRoutes)
+    app.use("/api/news", newsRoutes);
+
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
