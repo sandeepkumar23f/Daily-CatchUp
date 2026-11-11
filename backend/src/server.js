@@ -1,53 +1,61 @@
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import dns from "node:dns";
 import { connection } from "./config/dbconfig.js";
 import authRoutes from "./routes/authRoutes.js";
 import newsRoutes from "./routes/newsRoutes.js";
 
-dotenv.config();
-
-// Custom DNS configuration for MongoDB Atlas resolution on certain networks
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
-
 const app = express();
 const PORT = process.env.PORT || 5000;
+const normalizeOrigin = (origin) => origin.replace(/\/+$/, "");
+const configuredOrigins = (process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+  .map(normalizeOrigin);
 
-// Dynamic CORS origin configuration
-const allowedOrigins = [
+const allowedOrigins = new Set([
   "http://localhost:3000",
   "http://localhost:3010",
   "http://localhost:5173",
-  process.env.FRONTEND_URL,
-].filter(Boolean);
+  ...configuredOrigins,
+]);
+
+if (process.env.NODE_ENV === "production" && configuredOrigins.length === 0) {
+  throw new Error("FRONTEND_URL must contain the deployed frontend origin in production.");
+}
 
 // Middleware
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  if (!origin || allowedOrigins.has(normalizeOrigin(origin))) {
+    return next();
+  }
+  return res.status(403).json({
+    success: false,
+    message: "This frontend origin is not allowed. Check the backend FRONTEND_URL setting.",
+  });
+});
+
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like Postman or server-to-server) or matched origins
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS policy blocked request from origin: ${origin}`));
-      }
-    },
+    origin: (origin, callback) =>
+      callback(null, !origin || allowedOrigins.has(normalizeOrigin(origin))),
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 connection()
   .then(() => {
     console.log("Database connected successfully");
 
-    // Routes
     app.use("/api/auth", authRoutes);
     app.use("/api/news", newsRoutes);
 
