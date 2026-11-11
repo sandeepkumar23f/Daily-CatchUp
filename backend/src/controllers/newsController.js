@@ -1,6 +1,10 @@
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import { tavily } from "@tavily/core";
 import { z } from "zod";
+
+// Initialize SDKs outside the controller to reuse TCP connections
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
 
 const querySchema = z.object({
   topic: z.string().min(2, "Search query is required"),
@@ -9,9 +13,6 @@ const querySchema = z.object({
 
 export const summarizeNewsTopic = async (req, res) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
-
     const parseResult = querySchema.safeParse(req.body || {});
     if (!parseResult.success) {
       const errorMessage = parseResult.error.issues?.[0]?.message || "Invalid payload";
@@ -23,6 +24,7 @@ export const summarizeNewsTopic = async (req, res) => {
 
     const { topic, mode } = parseResult.data;
 
+    // Fetch news with Tavily
     const searchResponse = await tvly.search(topic, {
       searchDepth: "basic",
       topic: "news",
@@ -54,7 +56,7 @@ export const summarizeNewsTopic = async (req, res) => {
     News Content:
     ${newsText}
 
-    Return strictly a JSON object with this exact schema:
+    Return strictly a JSON object matching this schema:
     {
       "title": "Overall headline summarizing the news context",
       "executiveSummary": "1-2 sentence quick overview of the news topic",
@@ -66,16 +68,17 @@ export const summarizeNewsTopic = async (req, res) => {
     }
     `;
 
-    // Updated model name to gemini-3.8-flash
-    const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
+    // Groq-hosted gpt-oss-120b
+    const response = await groq.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      reasoning_effort: "low",
+      max_completion_tokens: 1500,
     });
 
-    const rawText = response.text.replace(/```json|```/g, "").trim();
+    const responseText = response.choices[0]?.message?.content || "{}";
+    const rawText = responseText.replace(/```json|```/g, "").trim();
     const structuredData = JSON.parse(rawText);
 
     return res.status(200).json({
@@ -87,6 +90,7 @@ export const summarizeNewsTopic = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch or summarize news",
+      error: error.message,
     });
   }
 };

@@ -17,6 +17,9 @@ both local development and production.
    npm run dev
    ```
 
+   If `BACKEND_URL` is not set, the frontend's development proxy targets
+   `http://localhost:5000`.
+
 4. Start the frontend from `frontend`:
 
    ```powershell

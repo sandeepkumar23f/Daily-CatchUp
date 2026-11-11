@@ -5,7 +5,9 @@ const nextConfig: NextConfig = {
     const backendUrl =
       process.env.BACKEND_URL ||
       process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") ||
-      "https://daily-catchup-backend.onrender.com";
+      (process.env.NODE_ENV === "development"
+        ? "http://localhost:5000"
+        : "https://daily-catchup-backend.onrender.com");
 
     return [
       {
