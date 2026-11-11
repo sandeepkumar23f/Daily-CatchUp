@@ -17,7 +17,8 @@ const PORT = process.env.PORT || 5000;
 // Define allowed origins for CORS
 const allowedOrigins = [
   "http://localhost:3000",
-  "http://localhost:5173", // Vite default port
+  "http://localhost:3010",
+  "http://localhost:5173",
 ];
 
 // Middleware
